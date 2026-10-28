@@ -1,0 +1,11 @@
+GPU: NVIDIA GeForce RTX 3050 Laptop GPU (compute capability 8.6)
+Matrix size: 3 x 3, batch size: 1000
+FP32, column-major matrices, repeats: 100
+
+Implementation              Time (us)      GFLOP/s  Max batch fwd error
+-----------------------------------------------------------------------
+Custom kernel                   3.217       16.786         3.358048e-08
+cuBLAS Strided Batched         15.012        3.597         3.171342e-08
+
+TEST PASS
+Speedup (cuBLAS time / custom time): 4.666x
