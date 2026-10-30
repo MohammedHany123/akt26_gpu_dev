@@ -20,29 +20,35 @@ __global__ void batch_gemm_kernel(int n, int batch_size,
                                     const float* B,
                                     float* C)
 {
-    const size_t matrix_size = (size_t)n * n;
-    const size_t total =  matrix_size * batch_size;
+    // TODO: write your own kernel here
+    __shared__ float sA[1024];
+    __shared__ float sB[1024];
 
-    const size_t tid = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    const int nn  = n * n;
+    const int lid = threadIdx.x;
+    const int m   = lid / nn;
+    const int p   = lid - m * nn;
+    const int mpb = blockDim.x / nn;
 
-    if (tid >= total) return;
+    const size_t gidx  = (size_t)blockIdx.x * blockDim.x + lid;
+    const size_t total = (size_t)batch_size * nn;
+    const bool valid   = gidx < total;
 
-    const int b = (int)(tid / matrix_size);
-    const size_t p = tid % matrix_size;
-
-    const int row = (int)(p % n);
-    const int col = (int)(p / n);
-
-    const size_t base = (size_t)b * matrix_size;
+    sA[lid] = valid ? A[gidx] : 0.0f;
+    sB[lid] = valid ? B[gidx] : 0.0f;
+    __syncthreads();
+    
+    const int row = p % n;
+    const int col = p / n;
+    const float* a = sA + m * nn;
+    const float* b = sB + m * nn + col * n;
 
     float sum = 0.0f;
+    #pragma unroll 8
+    for (int k = 0; k < n; ++k)
+        sum += a[k * n + row] * b[k];
 
-    for (int k = 0; k < n; ++k) {
-        sum += A[base + (size_t)k * n + row] *
-               B[base + (size_t)col * n + k];
-    }
-
-    C[tid] = sum;
+    if (valid) C[gidx] = sum;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,13 +222,12 @@ int main(int argc, char** argv)
     // Custom kernel configuration
     // --------------------------------------------------------
     // TODO: configure your kernel here
-    const int threads_per_block = 256;
-
-    const int blocks = (int)((total + threads_per_block - 1) / threads_per_block);
-
+    const int nn  = n * n;
+    const int mpb = std::max(1, 512 / nn);
+    const int threads_per_block = mpb * nn;
+    const int blocks = (batch_size + mpb - 1) / mpb;
     dim3 block(threads_per_block);
     dim3 grid(blocks);
-
 
     // --------------------------------------------------------
     // Warmup run
