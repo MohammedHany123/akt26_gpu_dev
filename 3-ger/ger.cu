@@ -8,17 +8,24 @@
 #include <cstdlib>
 #include <vector>
 
+#define COLS 4
+
 ////////////////////////////////////////////////////////////////////////////////
 // Custom rank-1 update kernel
 // A <- A + alpha * x * y^T
 // Column-major storage: A(i,j) = A[j*m + i]
 __global__ void ger_kernel(int m, int n, float alpha, const float* x, const float* y, float* A)
 {
+    // TODO: write your CUDA kernel here
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    const int j = blockIdx.y * blockDim.y + threadIdx.y;
+    const int j0 = (blockIdx.y * blockDim.y + threadIdx.y) * COLS;
+    if (i >= m) return;
 
-    if (i < m && j < n) {
-        A[(size_t)j * m + i] += alpha * x[i] * y[j];
+    const float ax = alpha * x[i];
+    #pragma unroll
+    for (int c = 0; c < COLS; ++c) {
+        const int j = j0 + c;
+        if (j < n) A[(size_t)j * m + i] += ax * y[j];
     }
 }
 
@@ -110,11 +117,13 @@ int main(int argc, char** argv)
                 m, n, alpha, repeats);
     std::printf("Matrix storage: column-major\n\n");
 
-    dim3 block(16, 16, 1);
+    // n1000: configure your kernel here
+    // TODO: the configuration below is a default that you must change
+    dim3 block(32, 8, 1);
     dim3 grid((m + block.x - 1) / block.x,
-              (n + block.y - 1) / block.y,
-              1);
-
+            (n + block.y * COLS - 1) / (block.y * COLS),
+            1);
+    // end of TODO: kernel configuration
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
