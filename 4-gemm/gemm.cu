@@ -1,4 +1,3 @@
-
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 
@@ -28,8 +27,7 @@ __global__ void batch_gemm_kernel(int n, int batch_size,
     const int lid = threadIdx.x;
     const int m   = lid / nn;
     const int p   = lid - m * nn;
-    const int mpb = blockDim.x / nn;
-
+    
     const size_t gidx  = (size_t)blockIdx.x * blockDim.x + lid;
     const size_t total = (size_t)batch_size * nn;
     const bool valid   = gidx < total;
